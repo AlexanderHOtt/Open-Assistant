@@ -62,6 +62,8 @@ cd oasst-shared
 pip install -e .
 ```
 
+Back in `discord-bot`
+
 ```bash
 cp .env.example .env
 

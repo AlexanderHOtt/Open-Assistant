@@ -4,6 +4,8 @@ from datetime import datetime
 
 import hikari
 
+time_formats = frozenset({"t", "T", "D", "f", "F", "R"})
+
 
 def format_time(dt: datetime, fmt: t.Literal["t", "T", "D", "f", "F", "R"]) -> str:
     """Format a datetime object into the discord time format.
@@ -17,11 +19,10 @@ def format_time(dt: datetime, fmt: t.Literal["t", "T", "D", "f", "F", "R"]) -> s
     | R | relative         | in an hour
     ```
     """
-    match fmt:
-        case "t" | "T" | "D" | "f" | "F" | "R":
-            return f"<t:{dt.timestamp():.0f}:{fmt}>"
-        case _:
-            raise ValueError(f"`fmt` must be 't', 'T', 'D', 'f', 'F' or 'R', not {fmt}")
+    if fmt in time_formats:
+        return f"<t:{dt.timestamp():.0f}:{fmt}>"
+
+    raise ValueError(f"'fmt' must be one of {time_formats}, not {fmt!r}")
 
 
 def mention(
