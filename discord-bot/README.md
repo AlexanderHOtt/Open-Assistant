@@ -30,24 +30,24 @@ If you are unfamiliar with `hikari`, `lightbulb`, or `miru`, please refer to the
    - Presence Intent
    - Message Content Intent
 
-This page also contains the bot token, which you will need to add to the `.env`
-file later.
+   This page also contains the bot token, which you will need to add to the
+   `.env` file later.
 
-2. Go to the "OAuth2" tab scroll to "Default Authorization Link"
+1. Go to the "OAuth2" tab scroll to "Default Authorization Link"
 
-3. Set "AUTHORIZATION METHOD" to "In-app Authorization"
+1. Set "AUTHORIZATION METHOD" to "In-app Authorization"
 
-4. Select the "bot" and "applications.commands" scopes
+1. Select the "bot" and "applications.commands" scopes
 
-5. For testing and local development, it's easiest to set "BOT PERMISSIONS" to
+1. For testing and local development, it's easiest to set "BOT PERMISSIONS" to
    "Administrator"
 
 Remember to save your changes.
 
-6. Copy the "CLIENT ID" from the top of the page and replace it in the link
+1. Copy the "CLIENT ID" from the top of the page and replace it in the link
    below to invite your bot.
 
-```
+```txt
 https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID_HERE&permissions=8&scope=bot%20applications.commands
 ```
 
