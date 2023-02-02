@@ -129,13 +129,6 @@ def rank_prompter_reply_messages(task: protocol_schema.RankPrompterRepliesTask) 
 
 :small_blue_diamond: __**RANK PROMPTER REPLIES**__ :small_blue_diamond:
 
-
-{_conversation(task.conversation)}
-:person_red_hair: __User__:
-{_ordered_list(task.replies)}
-
-:trophy: _Reply with the numbers of best to worst replies separated by commas (example: '4,1,3,2')_
-
 """,
         *_conversation(task.conversation),
         f""":person_red_hair: __User__:
