@@ -16,7 +16,6 @@ bot = lightbulb.BotApp(
     token=settings.bot_token,
     logs="DEBUG",
     prefix=settings.prefix,
-    # default_enabled_guilds=settings.declare_global_commands,
     owner_ids=settings.owner_ids,
     intents=hikari.Intents.ALL,
     help_class=None,

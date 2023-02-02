@@ -66,9 +66,6 @@ pip install -e .
 cp .env.example .env
 
 # edit .env and add your bot token and other values
-# BOT_TOKEN is given by the discord developer portal when you create a bot
-# DECLARE_GLOBAL_COMMANDS is the id of the server where you added the bot (right click on the server icon and copy id)
-# OWNER_ID can be leave as an empty list
 
 python -V  # 3.10
 
