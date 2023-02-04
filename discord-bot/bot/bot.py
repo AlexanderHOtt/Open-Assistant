@@ -1,8 +1,10 @@
 """Bot logic."""
 from datetime import datetime
+from uuid import UUID
+
+import hikari
 
 import aiosqlite
-import hikari
 import lightbulb
 import miru
 from bot.settings import Settings
@@ -42,6 +44,10 @@ async def on_starting(event: hikari.StartingEvent):
     # If both are `None`, the user is not currently selecting a task.
     # TODO: Grow this on startup so we don't have to re-allocate memory every time it needs to grow
     bot.d.currently_working = {}
+
+    # dict[hikari.Snowflakeish, UUID]
+    # Discord message (id) to frontend message (id)
+    bot.d.dm_to_fem = {}
 
 
 @bot.listen()

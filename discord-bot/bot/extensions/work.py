@@ -67,7 +67,7 @@ class _TaskHandler(t.Generic[_Task_contra]):
             if len(task_msg) > 2000:
                 logger.warning(f"Attempting to send a message <2000 characters in length. Task id: {self.task.id}")
                 task_msg = task_msg[:1999]
-            self.sent_messages.append(await self.ctx.author.send(task_msg))
+            await self.ctx.author.send(task_msg)
 
         # Send the last message with buttons
         task_accept_view = TaskAcceptView(timeout=MAX_TASK_ACCEPT_TIME)
