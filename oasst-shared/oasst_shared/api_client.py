@@ -151,6 +151,9 @@ class OasstApiClient:
         resp = await self.post("/api/v1/tasks/interaction", data=interaction.dict())
         return self._parse_task(resp)
 
+    async def label_text(self, message_id: str | UUID, label: list[str]):
+        ...
+
     async def close(self):
         logger.debug("Closing OasstApiClient session")
         await self.session.close()

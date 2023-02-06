@@ -55,7 +55,7 @@ class _TaskHandler(t.Generic[_Task_contra]):
         self.sent_messages: list[hikari.Message] = []
 
     @staticmethod
-    def get_task_messages(task: _Task_contra) -> list[str]:
+    def get_task_messages(task: _Task_contra) -> list[tuple[str, UUID | None]]:
         """Get the messages to send to the user for the task."""
         raise NotImplementedError
 
@@ -63,16 +63,23 @@ class _TaskHandler(t.Generic[_Task_contra]):
         """Send the task and wait for the user to accept/skip/cancel it."""
         # Send all but the last message because we need to attach buttons to the last one
         logger.debug(f"Sending {len(self.task_messages)} messages\n{self.task_messages!r}")
-        for task_msg in self.task_messages[:-1]:
+        for (task_msg, fid) in self.task_messages[:-1]:
             if len(task_msg) > 2000:
                 logger.warning(f"Attempting to send a message <2000 characters in length. Task id: {self.task.id}")
                 task_msg = task_msg[:1999]
-            await self.ctx.author.send(task_msg)
+            msg = await self.ctx.author.send(task_msg)
+            self.sent_messages.append(msg)
+            if fid is not None:
+                dmsg_to_fmsg: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_fmsg
+                dmsg_to_fmsg[msg.id] = fid
 
         # Send the last message with buttons
         task_accept_view = TaskAcceptView(timeout=MAX_TASK_ACCEPT_TIME)
         logger.debug(f"TH Message length {len(self.task_messages[-1])}")
-        last_msg = await self.ctx.author.send(self.task_messages[-1][:1999], components=task_accept_view)
+
+        (last_task_msg, fid) = self.task_messages[-1][:1999]
+        last_msg = await self.ctx.author.send(last_task_msg, components=task_accept_view)
+        self.sent_messages.append(last_msg)
 
         await task_accept_view.start(last_msg)
         await task_accept_view.wait()
@@ -169,7 +176,9 @@ class _RankingTaskHandler(_TaskHandler[_Ranking_contra]):
         db: Connection = self.ctx.bot.d.db
         async with db.cursor() as cursor:
             row = await (
-                await cursor.execute("SELECT log_channel_id FROM guilds WHERE guild_id = ?", (self.ctx.guild_id,))
+                await cursor.execute(
+                    "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (self.ctx.guild_id,)
+                )
             ).fetchone()
             log_channel = row[0] if row else None
         log_messages: list[hikari.Message] = []
@@ -185,7 +194,7 @@ class _RankingTaskHandler(_TaskHandler[_Ranking_contra]):
 
 class RankAssistantRepliesHandler(_RankingTaskHandler[protocol_schema.RankAssistantRepliesTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.RankAssistantRepliesTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.RankAssistantRepliesTask) -> list[tuple[str, UUID | None]]:
         return rank_assistant_reply_messages(task)
 
     def check_user_input(self, content: str) -> bool:
@@ -200,6 +209,7 @@ class RankAssistantRepliesHandler(_RankingTaskHandler[protocol_schema.RankAssist
         )
         await confirm_input_view.start(msg)
         await confirm_input_view.wait()
+        logger.debug(f"User choice: {confirm_input_view.choice}")
 
         return bool(confirm_input_view.choice)
 
@@ -230,7 +240,7 @@ class RankInitialPromptHandler(_RankingTaskHandler[protocol_schema.RankInitialPr
 
 class RankPrompterReplyHandler(_RankingTaskHandler[protocol_schema.RankPrompterRepliesTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.RankPrompterRepliesTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.RankPrompterRepliesTask) -> list[tuple[str, UUID | None]]:
         return rank_prompter_reply_messages(task)
 
     def check_user_input(self, content: str) -> bool:
@@ -361,7 +371,7 @@ rate_summary = "rate_summary"
 @plugin.command
 @lightbulb.command("work", "Complete a task.")
 @lightbulb.implements(lightbulb.SlashCommand, lightbulb.PrefixCommand)
-async def work2(ctx: lightbulb.Context) -> None:
+async def work(ctx: lightbulb.Context) -> None:
     """Complete a task."""
     oasst_api: OasstApiClient = ctx.bot.d.oasst_api
     currently_working: dict[hikari.Snowflake, UUID] = ctx.bot.d.currently_working
@@ -390,7 +400,9 @@ async def work2(ctx: lightbulb.Context) -> None:
     # Keep sending tasks until the user doesn't want more
     try:
         while True:
-            task = await oasst_api.fetch_random_task(
+            # task = await oasst_api.fetch_random_task(
+            task = await oasst_api.fetch_task(
+                task_type=protocol_schema.TaskRequestType.rank_assistant_replies,
                 user=protocol_schema.User(
                     id=f"{ctx.author.id}", display_name=ctx.author.username, auth_method="discord"
                 ),
@@ -498,6 +510,83 @@ class YesNoView(miru.View):
     async def on_timeout(self) -> None:
         if self.message is not None:
             await self.message.edit(component=None)
+
+
+@plugin.listener(hikari.ReactionAddEvent)
+async def label_on_reaction(event: hikari.ReactionAddEvent):
+    """Label a piece of text when a reaction is added."""
+    logger.debug(f"New reaction: {event.emoji_name}")
+    dmsg_to_fmsg: dict[hikari.Snowflake, UUID] = plugin.bot.d.dmsg_to_fmsg
+    if event.message_id in dmsg_to_fmsg:
+        logger.debug(f"Frontend message found: {dmsg_to_fmsg[event.message_id]}")
+        fmsg = dmsg_to_fmsg[event.message_id]
+
+    # {
+    #   "name": "spam",
+    #   "widget": "yes_no",
+    #   "display_text": "Seems to be intentionally low-quality or irrelevant",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "lang_mismatch",
+    #   "widget": "flag",
+    #   "display_text": "Wrong Language",
+    #   "help_text": "The message is written in a language that differs from the currently selected language."
+    # },
+    # {
+    #   "name": "quality",
+    #   "widget": "likert",
+    #   "display_text": "Overall subjective quality rating of the message",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "humor",
+    #   "widget": "likert",
+    #   "display_text": "Humorous content including sarcasm",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "creativity",
+    #   "widget": "likert",
+    #   "display_text": "Creativity",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "toxicity",
+    #   "widget": "likert",
+    #   "display_text": "Rude, abusive, profane or insulting content",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "violence",
+    #   "widget": "likert",
+    #   "display_text": "Violence/abuse/terrorism/self-harm",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "not_appropriate",
+    #   "widget": "flag",
+    #   "display_text": "Inappropriate",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "pii",
+    #   "widget": "flag",
+    #   "display_text": "Contains personal identifiable information (PII)",
+    #   "help_text": null
+    # },
+    # {
+    #   "name": "hate_speech",
+    #   "widget": "flag",
+    #   "display_text": "Content is abusive or threatening and expresses prejudice against a protected characteristic",
+    #   "help_text": "Prejudice refers to preconceived views not based on reason. Protected characteristics include gender, ethnicity, religion, sexual orientation, and similar characteristics."
+    # },
+    # {
+    #   "name": "sexual_content",
+    #   "widget": "flag",
+    #   "display_text": "Contains sexual content",
+    #   "help_text": null
+    # }
 
 
 def load(bot: lightbulb.BotApp):

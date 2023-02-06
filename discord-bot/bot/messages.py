@@ -1,8 +1,10 @@
 """All user-facing messages and embeds."""
 
 from datetime import datetime
+from uuid import UUID
 
 import hikari
+
 from oasst_shared.schemas import protocol as protocol_schema
 
 NUMBER_EMOJIS = [":one:", ":two:", ":three:", ":four:", ":five:", ":six:", ":seven:", ":eight:", ":nine:", ":ten:"]
@@ -68,18 +70,21 @@ def _ordered_list(items: list[protocol_schema.ConversationMessage]) -> str:
     return "\n\n".join(_make_ordered_list(items))
 
 
-def _conversation(conv: protocol_schema.Conversation) -> list[str]:
+def _conversation(conv: protocol_schema.Conversation) -> list[tuple[str, UUID | None]]:
     # return "\n".join([_assistant(msg.text) if msg.is_assistant else _user(msg.text) for msg in conv.messages])
     messages = map(
-        lambda m: f"""\
+        lambda m: (
+            f"""\
 :robot: __Assistant__:
 {m.text}
 """
-        if m.is_assistant
-        else f"""\
+            if m.is_assistant
+            else f"""\
 :person_red_hair: __User__:
 {m.text}
 """,
+            m.id,
+        ),
         conv.messages,
     )
     return list(messages)
@@ -122,10 +127,11 @@ def rank_initial_prompts_messages(task: protocol_schema.RankInitialPromptsTask) 
     ]
 
 
-def rank_prompter_reply_messages(task: protocol_schema.RankPrompterRepliesTask) -> list[str]:
+def rank_prompter_reply_messages(task: protocol_schema.RankPrompterRepliesTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `rank_prompter_replies` task."""
     return [
-        """\
+        (
+            """\
 
 :small_blue_diamond: __**RANK PROMPTER REPLIES**__ :small_blue_diamond:
 
@@ -137,28 +143,39 @@ def rank_prompter_reply_messages(task: protocol_schema.RankPrompterRepliesTask) 
 :trophy: _Reply with the numbers of best to worst replies separated by commas (example: '4,1,3,2')_
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f""":person_red_hair: __User__:
+        (
+            f""":person_red_hair: __User__:
 {_ordered_list(task.reply_messages)}
 
 :trophy: _Reply with the numbers of best to worst replies separated by commas (example: '4,1,3,2')_
 """,
+            None,
+        ),
     ]
 
 
-def rank_assistant_reply_messages(task: protocol_schema.RankAssistantRepliesTask) -> list[str]:
+def rank_assistant_reply_messages(task: protocol_schema.RankAssistantRepliesTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `rank_assistant_replies` task."""
     return [
-        """\
+        (
+            """\
 
 :small_blue_diamond: __**RANK ASSISTANT REPLIES**__ :small_blue_diamond:
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f""":robot: __Assistant__:,
+        (
+            f""":robot: __Assistant__:,
 {_ordered_list(task.reply_messages)}
 :trophy: _Reply with the numbers of best to worst replies separated by commas (example: '4,1,3,2')_
 """,
+            None,
+        ),
     ]
 
 

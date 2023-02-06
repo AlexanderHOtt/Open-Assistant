@@ -11,6 +11,8 @@ from bot.settings import Settings
 from bot.utils import mention
 from oasst_shared.api_client import OasstApiClient
 
+from loguru import logger
+
 settings = Settings()
 
 # TODO: Revisit cache settings
@@ -47,7 +49,7 @@ async def on_starting(event: hikari.StartingEvent):
 
     # dict[hikari.Snowflakeish, UUID]
     # Discord message (id) to frontend message (id)
-    bot.d.dm_to_fem = {}
+    bot.d.dmsg_to_fmsg = {}
 
 
 @bot.listen()
