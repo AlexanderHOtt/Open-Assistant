@@ -1,6 +1,5 @@
 """Bot logic."""
 from datetime import datetime
-from uuid import UUID
 
 import hikari
 
@@ -10,6 +9,7 @@ import miru
 from bot.settings import Settings
 from bot.utils import mention
 from oasst_shared.api_client import OasstApiClient
+import traceback
 
 from loguru import logger
 
@@ -47,9 +47,9 @@ async def on_starting(event: hikari.StartingEvent):
     # TODO: Grow this on startup so we don't have to re-allocate memory every time it needs to grow
     bot.d.currently_working = {}
 
-    # dict[hikari.Snowflakeish, UUID]
+    # dict[hikari.Snowflake, UUID]
     # Discord message (id) to frontend message (id)
-    bot.d.dmsg_to_fmsg = {}
+    bot.d.dmsg_to_uuid = {}
 
 
 @bot.listen()
@@ -70,7 +70,7 @@ async def _send_error_embed(
         timestamp=datetime.now().astimezone(),
     ).set_author(name=ctx.author.username, url=str(ctx.author.avatar_url))
 
-    await ctx.respond(embed=embed)
+    await ctx.author.send(embed=embed)  # TODO: ctx.respond
 
 
 @bot.listen(lightbulb.CommandErrorEvent)
@@ -79,6 +79,8 @@ async def on_error(event: lightbulb.CommandErrorEvent) -> None:
     # Unwrap the exception to get the original cause
     exc = event.exception.__cause__ or event.exception
     ctx = event.context
+    logger.error("".join(traceback.format_exception(exc, limit=10)))
+    logger.debug(f"exc: {exc!r}\nctx: {ctx!r}")
     if not ctx.bot.rest.is_alive:
         return
 

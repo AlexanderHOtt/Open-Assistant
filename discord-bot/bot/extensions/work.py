@@ -70,8 +70,8 @@ class _TaskHandler(t.Generic[_Task_contra]):
             msg = await self.ctx.author.send(task_msg)
             self.sent_messages.append(msg)
             if fid is not None:
-                dmsg_to_fmsg: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_fmsg
-                dmsg_to_fmsg[msg.id] = fid
+                dmsg_to_uuid: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_uuid
+                dmsg_to_uuid[msg.id] = fid
 
         # Send the last message with buttons
         task_accept_view = TaskAcceptView(timeout=MAX_TASK_ACCEPT_TIME)
@@ -184,9 +184,12 @@ class _RankingTaskHandler(_TaskHandler[_Ranking_contra]):
         log_messages: list[hikari.Message] = []
 
         if log_channel is not None:
-            for message in self.task_messages[:-1]:
-                msg = await self.ctx.bot.rest.create_message(log_channel, message)
+            for (log_msg, fid) in self.task_messages[:-1]:
+                msg = await self.ctx.bot.rest.create_message(log_channel, log_msg)
                 log_messages.append(msg)
+                if fid is not None:
+                    dmsg_to_uuid: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_uuid
+                    dmsg_to_uuid[msg.id] = fid
             await self.ctx.bot.rest.create_message(log_channel, task_complete_embed(self.task, self.ctx.author.mention))
 
         return task
@@ -316,7 +319,7 @@ class PrompterReplyHandler(_TaskHandler[protocol_schema.PrompterReplyTask]):
 
 class AssistantReplyHandler(_TaskHandler[protocol_schema.AssistantReplyTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.AssistantReplyTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.AssistantReplyTask) -> list[tuple[str, UUID | None]]:
         return assistant_reply_messages(task)
 
     def check_user_input(self, content: str) -> bool:
@@ -329,6 +332,46 @@ class AssistantReplyHandler(_TaskHandler[protocol_schema.AssistantReplyTask]):
         await confirm_input_view.wait()
 
         return bool(confirm_input_view.choice)
+
+    async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
+        oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
+
+        task = await oasst_api.post_interaction(
+            protocol_schema.TextReplyToMessage(
+                user=protocol_schema.User(
+                    id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
+                ),
+                text=content,
+                message_id=f"{self.sent_messages[0].id}",
+                user_message_id=f"{event.message.id}",
+                lang="en",
+            )
+        )
+
+        db: Connection = self.ctx.bot.d.db
+        async with db.cursor() as cursor:
+            row = await (
+                await cursor.execute(
+                    "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (self.ctx.guild_id,)
+                )
+            ).fetchone()
+            log_channel = row[0] if row else None
+        log_messages: list[hikari.Message] = []
+
+        if log_channel is not None:
+            dmsg_to_uuid: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_uuid
+            for (log_msg, msg_id) in self.task_messages[:-1]:
+                msg = await self.ctx.bot.rest.create_message(log_channel, log_msg)
+                log_messages.append(msg)
+                if msg_id is not None:
+                    dmsg_to_uuid[msg.id] = msg_id
+
+            user_response_msg = await self.ctx.bot.rest.create_message(log_channel, f"> {content}")
+            last_msg_id = await oasst_api.get_message(f"{event.message.id}")
+            dmsg_to_uuid[user_response_msg.id] = last_msg_id
+            await self.ctx.bot.rest.create_message(log_channel, task_complete_embed(self.task, self.ctx.author.mention))
+
+        return task
 
 
 _Label_contra = t.TypeVar("_Label_contra", bound=protocol_schema.LabelConversationReplyTask, contravariant=True)
@@ -394,15 +437,16 @@ async def work(ctx: lightbulb.Context) -> None:
                 task_id = currently_working[ctx.author.id]
                 await oasst_api.nack_task(task_id, reason="user cancelled")
 
-    if ctx.guild_id:
-        await ctx.respond("check DMs", flags=hikari.MessageFlag.EPHEMERAL)
+    # if ctx.guild_id:
+    #     await ctx.respond("check DMs", flags=hikari.MessageFlag.EPHEMERAL)
+    await ctx.respond("Sending a task...")
 
     # Keep sending tasks until the user doesn't want more
     try:
         while True:
             # task = await oasst_api.fetch_random_task(
             task = await oasst_api.fetch_task(
-                task_type=protocol_schema.TaskRequestType.rank_assistant_replies,
+                task_type=protocol_schema.TaskRequestType.assistant_reply,
                 user=protocol_schema.User(
                     id=f"{ctx.author.id}", display_name=ctx.author.username, auth_method="discord"
                 ),
@@ -449,8 +493,25 @@ async def work(ctx: lightbulb.Context) -> None:
                 case None:
                     await task_handler.cancel("select timed out")
                     break
+
+            # ask user if they want to complete another task
+            next_task_view = YesNoView(timeout=MAX_TASK_ACCEPT_TIME)
+            msg = await ctx.author.send(
+                # hikari.ResponseType.MESSAGE_CREATE,
+                "Task complete. Would you like to complete another?",
+                components=next_task_view,
+            )
+            await next_task_view.start(msg)
+            await next_task_view.wait()
+
+            match next_task_view.choice:
+                case True:
+                    continue
+                case False | None:
+                    break
     finally:
-        del currently_working[ctx.author.id]
+        if ctx.author.id in currently_working:
+            del currently_working[ctx.author.id]
 
 
 class TaskAcceptView(miru.View):
@@ -516,10 +577,24 @@ class YesNoView(miru.View):
 async def label_on_reaction(event: hikari.ReactionAddEvent):
     """Label a piece of text when a reaction is added."""
     logger.debug(f"New reaction: {event.emoji_name}")
-    dmsg_to_fmsg: dict[hikari.Snowflake, UUID] = plugin.bot.d.dmsg_to_fmsg
-    if event.message_id in dmsg_to_fmsg:
-        logger.debug(f"Frontend message found: {dmsg_to_fmsg[event.message_id]}")
-        fmsg = dmsg_to_fmsg[event.message_id]
+    dmsg_to_uuid: dict[hikari.Snowflake, UUID] = plugin.bot.d.dmsg_to_uuid
+    oasst_api: OasstApiClient = plugin.bot.d.oasst_api
+    if event.message_id in dmsg_to_uuid:
+        logger.debug(f"Frontend message found: {dmsg_to_uuid[event.message_id]}")
+        msg_id = dmsg_to_uuid[event.message_id]
+
+        labels: dict[protocol_schema.TextLabel, float] = {}
+        if event.is_for_emoji("🗑️"):
+            labels[protocol_schema.TextLabel.spam] = 1
+
+        if not labels:
+            return
+
+        await oasst_api.label_text(
+            msg_id,
+            protocol_schema.User(id=f"{event.user_id}", display_name="asdf", auth_method="discord"),
+            labels,
+        )
 
     # {
     #   "name": "spam",

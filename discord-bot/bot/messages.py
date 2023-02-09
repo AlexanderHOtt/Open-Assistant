@@ -259,18 +259,24 @@ def prompter_reply_messages(task: protocol_schema.PrompterReplyTask) -> list[str
     ]
 
 
-def assistant_reply_messages(task: protocol_schema.AssistantReplyTask) -> list[str]:
+def assistant_reply_messages(task: protocol_schema.AssistantReplyTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `assistant_reply` task."""
     return [
-        """\
+        (
+            """\
 :small_blue_diamond: __**ASSISTANT REPLY**__ :small_blue_diamond:
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        """\
+        (
+            """\
 
 :speech_balloon: _Please provide a reply to the user as the assistant._
 """,
+            None,
+        ),
     ]
 
 
