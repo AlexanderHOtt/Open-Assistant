@@ -68,7 +68,11 @@ class OasstApiClient:
     async def post(self, path: str, data: dict[str, t.Any]) -> Optional[dict[str, t.Any]]:
         """Make a POST request to the backend."""
         logger.debug(f"POST {self.backend_url}{path} DATA: {data}")
-        response = await self.session.post(f"{self.backend_url}{path}", json=data, headers={"x-api-key": self.api_key})
+        response = await self.session.post(
+            f"{self.backend_url}{path}",
+            json=data,
+            headers={"x-api-key": self.api_key, "x-oasst-user": "discord:425800572671754242"},  # TODO: change
+        )
         logger.debug(f"response: {response}")
 
         # If the response is not a 2XX, check to see
@@ -99,6 +103,16 @@ class OasstApiClient:
         if response.status == 204:
             # No content
             return None
+        return await response.json()
+
+    async def get(self, path: str) -> t.Any:
+        """Make a GET request to the backend."""
+        logger.debug(f"GET {self.backend_url}{path}")
+        response = await self.session.get(
+            f"{self.backend_url}{path}",
+            headers={"x-api-key": self.api_key, "x-oasst-user": "discord:425800572671754242"},
+        )
+        logger.debug(f"response: {response}")
         return await response.json()
 
     def _parse_task(self, data: Optional[dict[str, t.Any]]) -> protocol_schema.Task:
@@ -151,8 +165,21 @@ class OasstApiClient:
         resp = await self.post("/api/v1/tasks/interaction", data=interaction.dict())
         return self._parse_task(resp)
 
-    async def label_text(self, message_id: str | UUID, label: list[str]):
-        ...
+    async def label_text(
+        self,
+        message_id: UUID,
+        user: protocol_schema.User,
+        labels: dict[protocol_schema.TextLabel, float],
+    ) -> None:
+        """Send a label for a text to the backend."""
+        req = protocol_schema.TextLabels(
+            user=user, text="", labels=labels, message_id=f"{message_id}", is_report=False, task_id=None
+        )
+        logger.debug(f"Label text {message_id} with labels {labels}. (Req: {req})")
+        await self.post(f"/api/v1/text_labels", data=req.dict())
+
+    async def get_message(self, message_id: str) -> UUID:
+        return (await self.get(f"/api/v1/frontend_messages/{message_id}"))["id"]
 
     async def close(self):
         logger.debug("Closing OasstApiClient session")

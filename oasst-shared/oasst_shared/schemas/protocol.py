@@ -179,6 +179,7 @@ class RateSummaryTask(AbstractRatingTask):
 class WithHintMixin(BaseModel):
     hint: str | None = None  # provide a hint to the user to spark their imagination
 
+class AbstractTextTask(Task): ...
 
 class InitialPromptTask(Task, WithHintMixin):
     """A task to prompt the user to submit an initial prompt to the assistant."""
@@ -407,7 +408,7 @@ class TextLabels(Interaction):
     type: Literal["text_labels"] = "text_labels"
     text: str
     labels: dict[TextLabel, float]
-    message_id: UUID
+    message_id: str
     task_id: Optional[UUID]
     is_report: Optional[bool]
 

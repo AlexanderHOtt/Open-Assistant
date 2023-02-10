@@ -333,6 +333,17 @@ class AssistantReplyHandler(_TaskHandler[protocol_schema.AssistantReplyTask]):
 
         return bool(confirm_input_view.choice)
 
+    async def get_interaction() -> protocol_schema.Interaction:
+            return protocol_schema.TextReplyToMessage(
+                # user=protocol_schema.User(
+                #     id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
+                # ),
+                text=content,
+                message_id=f"{self.sent_messages[0].id}",
+                user_message_id=f"{event.message.id}",
+                lang="en",
+            )
+
     async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
         oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
 
