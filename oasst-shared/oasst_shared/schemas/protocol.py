@@ -186,15 +186,18 @@ class RateSummaryTask(AbstractRatingTask):
 class WithHintMixin(BaseModel):
     hint: str | None = None  # provide a hint to the user to spark their imagination
 
-class AbstractTextTask(Task): ...
 
-class InitialPromptTask(Task, WithHintMixin):
+class AbstractTextResponseTask(Task):
+    """A task with a text response."""
+
+
+class InitialPromptTask(AbstractTextResponseTask, WithHintMixin):
     """A task to prompt the user to submit an initial prompt to the assistant."""
 
     type: Literal["initial_prompt"] = "initial_prompt"
 
 
-class ReplyToConversationTask(Task):
+class ReplyToConversationTask(AbstractTextResponseTask):
     """A task to prompt the user to submit a reply to a conversation."""
 
     type: Literal["reply_to_conversation"] = "reply_to_conversation"

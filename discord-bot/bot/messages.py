@@ -4,7 +4,6 @@ from datetime import datetime
 from uuid import UUID
 
 import hikari
-
 from oasst_shared.schemas import protocol as protocol_schema
 
 NUMBER_EMOJIS = [":one:", ":two:", ":three:", ":four:", ":five:", ":six:", ":seven:", ":eight:", ":nine:", ":ten:"]
@@ -99,23 +98,27 @@ def _li(text: str) -> str:
 ###
 
 
-def initial_prompt_messages(task: protocol_schema.InitialPromptTask) -> list[str]:
+def initial_prompt_messages(task: protocol_schema.InitialPromptTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request an `initial_prompt` task."""
     return [
-        f"""\
+        (
+            f"""\
 
 :small_blue_diamond: __**INITIAL PROMPT**__ :small_blue_diamond:
 
 
 :pencil: _Please provide an initial prompt to the assistant._{f"{NL}Hint: {task.hint}" if task.hint else ""}
-"""
+""",
+            None,
+        )
     ]
 
 
-def rank_initial_prompts_messages(task: protocol_schema.RankInitialPromptsTask) -> list[str]:
+def rank_initial_prompts_messages(task: protocol_schema.RankInitialPromptsTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `rank_initial_prompts` task."""
     return [
-        f"""\
+        (
+            f"""\
 
 :small_blue_diamond: __**RANK INITIAL PROMPTS**__ :small_blue_diamond:
 
@@ -123,7 +126,9 @@ def rank_initial_prompts_messages(task: protocol_schema.RankInitialPromptsTask) 
 {_ordered_list(task.prompt_messages)}
 
 :trophy: _Reply with the numbers of best to worst prompts separated by commas (example: '4,1,3,2')_
-"""
+""",
+            None,
+        )
     ]
 
 
@@ -179,18 +184,26 @@ def rank_assistant_reply_messages(task: protocol_schema.RankAssistantRepliesTask
     ]
 
 
-def rank_conversation_reply_messages(task: protocol_schema.RankConversationRepliesTask) -> list[str]:
+def rank_conversation_reply_messages(
+    task: protocol_schema.RankConversationRepliesTask,
+) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `rank_conversation_replies` task."""
     return [
-        """\
+        (
+            """\
 
 :small_blue_diamond: __**RANK CONVERSATION REPLIES**__ :small_blue_diamond:
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f""":person_red_hair: __User__:
+        (
+            f""":person_red_hair: __User__:
 {_ordered_list(task.reply_messages)}
 """,
+            None,
+        ),
     ]
 
 
@@ -207,55 +220,73 @@ def label_initial_prompt_message(task: protocol_schema.LabelInitialPromptTask) -
 """
 
 
-def label_prompter_reply_messages(task: protocol_schema.LabelPrompterReplyTask) -> list[str]:
+def label_prompter_reply_messages(task: protocol_schema.LabelPrompterReplyTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `label_prompter_reply` task."""
     return [
-        f"""\
+        (
+            f"""\
 
 {_h1("LABEL PROMPTER REPLY")}
 
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f"""{_user(None)}
+        (
+            f"""{_user(None)}
 {task.reply}
 
 {_label_prompt("Reply with labels for the reply separated by commas (example: 'profanity,misleading')", task.mandatory_labels, task.valid_labels)}
 """,
+            None,
+        ),
     ]
 
 
-def label_assistant_reply_messages(task: protocol_schema.LabelAssistantReplyTask) -> list[str]:
+def label_assistant_reply_messages(task: protocol_schema.LabelAssistantReplyTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `label_assistant_reply` task."""
     return [
-        f"""\
+        (
+            f"""\
 
 {_h1("LABEL ASSISTANT REPLY")}
 
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f"""
+        (
+            f"""
 {_assistant(None)}
 {task.reply}
 
 {_label_prompt("Reply with labels for the reply separated by commas (example: 'profanity,misleading')", task.mandatory_labels, task.valid_labels)}
 """,
+            None,
+        ),
     ]
 
 
-def prompter_reply_messages(task: protocol_schema.PrompterReplyTask) -> list[str]:
+def prompter_reply_messages(task: protocol_schema.PrompterReplyTask) -> list[tuple[str, UUID | None]]:
     """Creates the message that gets sent to users when they request a `prompter_reply` task."""
     return [
-        """\
+        (
+            """\
 :small_blue_diamond: __**PROMPTER REPLY**__ :small_blue_diamond:
 
 """,
+            None,
+        ),
         *_conversation(task.conversation),
-        f"""{f"{NL}Hint: {task.hint}" if task.hint else ""}
+        (
+            f"""{f"{NL}Hint: {task.hint}" if task.hint else ""}
 
 :speech_balloon: _Please provide a reply to the assistant._
 """,
+            None,
+        ),
     ]
 
 

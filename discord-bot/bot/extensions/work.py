@@ -222,7 +222,7 @@ class RankInitialPromptHandler(_RankingTaskHandler[protocol_schema.RankInitialPr
         super().__init__(ctx, task)
 
     @staticmethod
-    def get_task_messages(task: protocol_schema.RankInitialPromptsTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.RankInitialPromptsTask) -> list[tuple[str, UUID | None]]:
         return rank_initial_prompts_messages(task)
 
     def check_user_input(self, content: str) -> bool:
@@ -264,7 +264,7 @@ class RankPrompterReplyHandler(_RankingTaskHandler[protocol_schema.RankPrompterR
 
 class RankConversationReplyHandler(_RankingTaskHandler[protocol_schema.RankConversationRepliesTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.RankConversationRepliesTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.RankConversationRepliesTask) -> list[tuple[str, UUID | None]]:
         return rank_conversation_reply_messages(task)
 
     def check_user_input(self, content: str) -> bool:
@@ -283,14 +283,13 @@ class RankConversationReplyHandler(_RankingTaskHandler[protocol_schema.RankConve
         return bool(confirm_input_view.choice)
 
 
-class InitialPromptHandler(_TaskHandler[protocol_schema.InitialPromptTask]):
-    @staticmethod
-    def get_task_messages(task: protocol_schema.InitialPromptTask) -> list[str]:
-        return initial_prompt_messages(task)
+_TextResponse_contra = t.TypeVar(
+    "_TextResponse_contra",
+    bound=protocol_schema.InitialPromptTask | protocol_schema.PrompterReplyTask | protocol_schema.AssistantReplyTask,
+)
 
-    def check_user_input(self, content: str) -> bool:
-        return len(content) > 0
 
+class _TextResponseTaskHandler(_TaskHandler[_TextResponse_contra]):
     async def confirm_user_input(self, content: str) -> bool:
         confirm_input_view = YesNoView()
         msg = await self.ctx.author.send(confirm_text_response_message(content), components=confirm_input_view)
@@ -298,51 +297,6 @@ class InitialPromptHandler(_TaskHandler[protocol_schema.InitialPromptTask]):
         await confirm_input_view.wait()
 
         return bool(confirm_input_view.choice)
-
-
-class PrompterReplyHandler(_TaskHandler[protocol_schema.PrompterReplyTask]):
-    @staticmethod
-    def get_task_messages(task: protocol_schema.PrompterReplyTask) -> list[str]:
-        return prompter_reply_messages(task)
-
-    def check_user_input(self, content: str) -> bool:
-        return len(content) > 0
-
-    async def confirm_user_input(self, content: str) -> bool:
-        confirm_input_view = YesNoView()
-        msg = await self.ctx.author.send(confirm_text_response_message(content), components=confirm_input_view)
-        await confirm_input_view.start(msg)
-        await confirm_input_view.wait()
-
-        return bool(confirm_input_view.choice)
-
-
-class AssistantReplyHandler(_TaskHandler[protocol_schema.AssistantReplyTask]):
-    @staticmethod
-    def get_task_messages(task: protocol_schema.AssistantReplyTask) -> list[tuple[str, UUID | None]]:
-        return assistant_reply_messages(task)
-
-    def check_user_input(self, content: str) -> bool:
-        return len(content) > 0
-
-    async def confirm_user_input(self, content: str) -> bool:
-        confirm_input_view = YesNoView()
-        msg = await self.ctx.author.send(confirm_text_response_message(content), components=confirm_input_view)
-        await confirm_input_view.start(msg)
-        await confirm_input_view.wait()
-
-        return bool(confirm_input_view.choice)
-
-    async def get_interaction() -> protocol_schema.Interaction:
-            return protocol_schema.TextReplyToMessage(
-                # user=protocol_schema.User(
-                #     id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
-                # ),
-                text=content,
-                message_id=f"{self.sent_messages[0].id}",
-                user_message_id=f"{event.message.id}",
-                lang="en",
-            )
 
     async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
         oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
@@ -385,6 +339,75 @@ class AssistantReplyHandler(_TaskHandler[protocol_schema.AssistantReplyTask]):
         return task
 
 
+class InitialPromptHandler(_TextResponseTaskHandler[protocol_schema.InitialPromptTask]):
+    @staticmethod
+    def get_task_messages(task: protocol_schema.InitialPromptTask) -> list[tuple[str, UUID | None]]:
+        return initial_prompt_messages(task)
+
+
+class PrompterReplyHandler(_TextResponseTaskHandler[protocol_schema.PrompterReplyTask]):
+    @staticmethod
+    def get_task_messages(task: protocol_schema.PrompterReplyTask) -> list[tuple[str, UUID | None]]:
+        return prompter_reply_messages(task)
+
+
+class AssistantReplyHandler(_TextResponseTaskHandler[protocol_schema.AssistantReplyTask]):
+    @staticmethod
+    def get_task_messages(task: protocol_schema.AssistantReplyTask) -> list[tuple[str, UUID | None]]:
+        return assistant_reply_messages(task)
+
+    # async def get_interaction() -> protocol_schema.Interaction:
+    #         return protocol_schema.TextReplyToMessage(
+    #             user=protocol_schema.User(
+    #                 id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
+    #             ),
+    #             text=content,
+    #             message_id=f"{self.sent_messages[0].id}",
+    #             user_message_id=f"{event.message.id}",
+    #             lang="en",
+    #         )
+
+    # async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
+    #     oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
+
+    #     task = await oasst_api.post_interaction(
+    #         protocol_schema.TextReplyToMessage(
+    #             user=protocol_schema.User(
+    #                 id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
+    #             ),
+    #             text=content,
+    #             message_id=f"{self.sent_messages[0].id}",
+    #             user_message_id=f"{event.message.id}",
+    #             lang="en",
+    #         )
+    #     )
+
+    #     db: Connection = self.ctx.bot.d.db
+    #     async with db.cursor() as cursor:
+    #         row = await (
+    #             await cursor.execute(
+    #                 "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (self.ctx.guild_id,)
+    #             )
+    #         ).fetchone()
+    #         log_channel = row[0] if row else None
+    #     log_messages: list[hikari.Message] = []
+
+    #     if log_channel is not None:
+    #         dmsg_to_uuid: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_uuid
+    #         for (log_msg, msg_id) in self.task_messages[:-1]:
+    #             msg = await self.ctx.bot.rest.create_message(log_channel, log_msg)
+    #             log_messages.append(msg)
+    #             if msg_id is not None:
+    #                 dmsg_to_uuid[msg.id] = msg_id
+
+    #         user_response_msg = await self.ctx.bot.rest.create_message(log_channel, f"> {content}")
+    #         last_msg_id = await oasst_api.get_message(f"{event.message.id}")
+    #         dmsg_to_uuid[user_response_msg.id] = last_msg_id
+    #         await self.ctx.bot.rest.create_message(log_channel, task_complete_embed(self.task, self.ctx.author.mention))
+
+    #     return task
+
+
 _Label_contra = t.TypeVar("_Label_contra", bound=protocol_schema.LabelConversationReplyTask, contravariant=True)
 
 
@@ -408,13 +431,13 @@ class _LabelConversationReplyHandler(_TaskHandler[_Label_contra]):
 
 class LabelAssistantReplyHandler(_LabelConversationReplyHandler[protocol_schema.LabelAssistantReplyTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.LabelAssistantReplyTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.LabelAssistantReplyTask) -> list[tuple[str, UUID | None]]:
         return label_assistant_reply_messages(task)
 
 
 class LabelPrompterReplyHandler(_LabelConversationReplyHandler[protocol_schema.LabelPrompterReplyTask]):
     @staticmethod
-    def get_task_messages(task: protocol_schema.LabelPrompterReplyTask) -> list[str]:
+    def get_task_messages(task: protocol_schema.LabelPrompterReplyTask) -> list[tuple[str, UUID | None]]:
         return label_prompter_reply_messages(task)
 
 
