@@ -298,6 +298,9 @@ class _TextResponseTaskHandler(_TaskHandler[_TextResponse_contra]):
 
         return bool(confirm_input_view.choice)
 
+    def check_user_input(self, content: str) -> bool:
+        return len(content) > 0
+
     async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
         oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
 
@@ -355,57 +358,6 @@ class AssistantReplyHandler(_TextResponseTaskHandler[protocol_schema.AssistantRe
     @staticmethod
     def get_task_messages(task: protocol_schema.AssistantReplyTask) -> list[tuple[str, UUID | None]]:
         return assistant_reply_messages(task)
-
-    # async def get_interaction() -> protocol_schema.Interaction:
-    #         return protocol_schema.TextReplyToMessage(
-    #             user=protocol_schema.User(
-    #                 id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
-    #             ),
-    #             text=content,
-    #             message_id=f"{self.sent_messages[0].id}",
-    #             user_message_id=f"{event.message.id}",
-    #             lang="en",
-    #         )
-
-    # async def notify(self, content: str, event: hikari.DMMessageCreateEvent) -> protocol_schema.Task:
-    #     oasst_api: OasstApiClient = self.ctx.bot.d.oasst_api
-
-    #     task = await oasst_api.post_interaction(
-    #         protocol_schema.TextReplyToMessage(
-    #             user=protocol_schema.User(
-    #                 id=f"{self.ctx.author.id}", auth_method="discord", display_name=self.ctx.author.username
-    #             ),
-    #             text=content,
-    #             message_id=f"{self.sent_messages[0].id}",
-    #             user_message_id=f"{event.message.id}",
-    #             lang="en",
-    #         )
-    #     )
-
-    #     db: Connection = self.ctx.bot.d.db
-    #     async with db.cursor() as cursor:
-    #         row = await (
-    #             await cursor.execute(
-    #                 "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (self.ctx.guild_id,)
-    #             )
-    #         ).fetchone()
-    #         log_channel = row[0] if row else None
-    #     log_messages: list[hikari.Message] = []
-
-    #     if log_channel is not None:
-    #         dmsg_to_uuid: dict[hikari.Snowflake, UUID] = self.ctx.bot.d.dmsg_to_uuid
-    #         for (log_msg, msg_id) in self.task_messages[:-1]:
-    #             msg = await self.ctx.bot.rest.create_message(log_channel, log_msg)
-    #             log_messages.append(msg)
-    #             if msg_id is not None:
-    #                 dmsg_to_uuid[msg.id] = msg_id
-
-    #         user_response_msg = await self.ctx.bot.rest.create_message(log_channel, f"> {content}")
-    #         last_msg_id = await oasst_api.get_message(f"{event.message.id}")
-    #         dmsg_to_uuid[user_response_msg.id] = last_msg_id
-    #         await self.ctx.bot.rest.create_message(log_channel, task_complete_embed(self.task, self.ctx.author.mention))
-
-    #     return task
 
 
 _Label_contra = t.TypeVar("_Label_contra", bound=protocol_schema.LabelConversationReplyTask, contravariant=True)
@@ -620,6 +572,26 @@ async def label_on_reaction(event: hikari.ReactionAddEvent):
         labels: dict[protocol_schema.TextLabel, float] = {}
         if event.is_for_emoji("🗑️"):
             labels[protocol_schema.TextLabel.spam] = 1
+        elif event.is_for_emoji("😕"):
+            labels[protocol_schema.TextLabel.lang_mismatch] = 1
+        # elif event.is_for_emoji("😐"):
+        #     labels[protocol_schema.TextLabel.quality] = 0.5
+        # elif event.is_for_emoji("😃"):
+        #     labels[protocol_schema.TextLabel.humor] = 1
+        # elif event.is_for_emoji("🎨"):
+        #     labels[protocol_schema.TextLabel.creativity] = 1
+        elif event.is_for_emoji("☢️"):
+            labels[protocol_schema.TextLabel.toxicity] = 1
+        elif event.is_for_emoji("⚔️️"):
+            labels[protocol_schema.TextLabel.violence] = 1
+        elif event.is_for_emoji("❌"):
+            labels[protocol_schema.TextLabel.not_appropriate] = 1
+        elif event.is_for_emoji("🔍"):
+            labels[protocol_schema.TextLabel.pii] = 1
+        elif event.is_for_emoji("🤬"):
+            labels[protocol_schema.TextLabel.hate_speech] = 1
+        elif event.is_for_emoji("🔞"):
+            labels[protocol_schema.TextLabel.sexual_content] = 1
 
         if not labels:
             return
@@ -629,73 +601,6 @@ async def label_on_reaction(event: hikari.ReactionAddEvent):
             protocol_schema.User(id=f"{event.user_id}", display_name="asdf", auth_method="discord"),
             labels,
         )
-
-    # {
-    #   "name": "spam",
-    #   "widget": "yes_no",
-    #   "display_text": "Seems to be intentionally low-quality or irrelevant",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "lang_mismatch",
-    #   "widget": "flag",
-    #   "display_text": "Wrong Language",
-    #   "help_text": "The message is written in a language that differs from the currently selected language."
-    # },
-    # {
-    #   "name": "quality",
-    #   "widget": "likert",
-    #   "display_text": "Overall subjective quality rating of the message",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "humor",
-    #   "widget": "likert",
-    #   "display_text": "Humorous content including sarcasm",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "creativity",
-    #   "widget": "likert",
-    #   "display_text": "Creativity",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "toxicity",
-    #   "widget": "likert",
-    #   "display_text": "Rude, abusive, profane or insulting content",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "violence",
-    #   "widget": "likert",
-    #   "display_text": "Violence/abuse/terrorism/self-harm",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "not_appropriate",
-    #   "widget": "flag",
-    #   "display_text": "Inappropriate",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "pii",
-    #   "widget": "flag",
-    #   "display_text": "Contains personal identifiable information (PII)",
-    #   "help_text": null
-    # },
-    # {
-    #   "name": "hate_speech",
-    #   "widget": "flag",
-    #   "display_text": "Content is abusive or threatening and expresses prejudice against a protected characteristic",
-    #   "help_text": "Prejudice refers to preconceived views not based on reason. Protected characteristics include gender, ethnicity, religion, sexual orientation, and similar characteristics."
-    # },
-    # {
-    #   "name": "sexual_content",
-    #   "widget": "flag",
-    #   "display_text": "Contains sexual content",
-    #   "help_text": null
-    # }
 
 
 def load(bot: lightbulb.BotApp):

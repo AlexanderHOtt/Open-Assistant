@@ -353,6 +353,16 @@ The type of task to start. If not provided, a random task will be selected. The 
 :small_orange_diamond: `rank_prompter_replies`: Rank some prompter replies
 :small_orange_diamond: `rank_assistant_replies`: Rank some assistant replies
 
+React to a task message with the following to label it:
+    🗑️: spam
+    😕: lang_mismatch
+    ☢️: toxicity
+    ⚔️️: violence
+    ❌: not_appropriate
+    🔍: pii
+    🤬: hate_speech
+    🔞: sexual_content
+
 To learn how to complete tasks, run `/tutorial`.
 """
     if can_manage_guild:

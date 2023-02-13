@@ -30,7 +30,7 @@ async def help_command(ctx: lightbulb.Context) -> None:
 @lightbulb.implements(lightbulb.SlashCommand, lightbulb.PrefixCommand)
 async def tutorial(ctx: lightbulb.Context) -> None:
     """Help for the bot."""
-    await ctx.respond(tutorial_message(True, True))
+    await ctx.respond(tutorial_message())
 
 
 def load(bot: lightbulb.BotApp):
